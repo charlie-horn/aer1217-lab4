@@ -114,13 +114,59 @@ class VisualOdometry:
         #   prev_l_x, prev_l_y, prev_r_x, prev_r_y, cur_l_x, cur_l_y, cur_r_x, cur_r_y
         return features_coor
     
+    def pixelToPointCloud(self,left,right):
+        b = self.cam.b
+        ul = left[0]
+        vl = left[1]
+        ur = right[0]
+        vr = right[1]
+        cu = self.cam.cu
+        cv = self.cam.cv
+        fu = self.cam.fu
+        fv = self.cam.fv
+
+        F = [[(ul+ur)/2-cu],
+            [((vl+vr)/2-cv)*fu/fv],
+            [fu]]
+        p = (b/(ul - ur))*F
+        return p
+    
     def ransac(self, feature_coor):
-        num_features, _ = feature_coor.shape
-        epsilon = 0.1
+        return feature_coor
+        num_frames, _ = feature_coor.shape
+        inlier_threshold = 0.1
+        min_inlier_fraction = 0.9
         M = 3
         iterations = 100
+        best_C = np.zeros((3,3))
+        best_r = np.zeros((3,1))
+        most_inliers = 0
         for i in range(iterations):
-            particles = random.sample(range(num_features), M)
+            chosen_features = random.sample(range(num_frames), M)
+            for feature in chosen_features:
+                prev_left_x = feature_coor[feature,0]
+                prev_left_y = feature_coor[feature,1]
+                prev_right_x = feature_coor[feature,2]
+                prev_right_y = feature_coor[feature,3]
+                # Get 3D point in first frame
+                p_prev = self.pixelToPointCloud((prev_left_x,prev_left_y),(prev_right_x,prev_right_y))
+
+                curr_left_x = feature_coor[feature,0]
+                curr_left_y = feature_coor[feature,1]
+                curr_right_x = feature_coor[feature,2]
+                curr_right_y = feature_coor[feature,3]
+                # Get 3D point in first frame
+                p_curr = self.pixelToPointCloud((curr_left_x,curr_left_y),(curr_right_x,curr_right_y))
+
+            # Find "Model" for movement from a to b
+
+            # Find inliers/outliers
+
+            # Save best model
+
+            # Check if model is good enough
+
+
 
         
 

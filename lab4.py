@@ -25,7 +25,7 @@ def main():
     OXTS_pose_gt = sio.loadmat('ground_truth_pose.mat')["pose"]
 
     # image sequence
-    sequence_num = OXTS_pose_gt.shape[1]
+    sequence_num = 10#OXTS_pose_gt.shape[1]
     pose_gt = np.zeros((sequence_num, 4, 4))
     # save ground truth into pose_gt
     for i in range(sequence_num):
@@ -131,7 +131,9 @@ def main():
     ax_t.legend()
     ax_t.set_zlim3d(-20.0, 25.0)
     plt.title(r"Trajectory of the vehicle", fontsize=13, fontweight=0, color='black', style='italic', y=1.02 )
-    plt.show()
+    plt.savefig('trajectory.png')
+    #plt.show()
+    plt.close()
 
 if __name__ == '__main__':
     print('We are using OpenCV version {}'.format(cv.__version__))
