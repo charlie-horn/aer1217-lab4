@@ -132,7 +132,7 @@ def main():
     ax_t.set_zlim3d(-20.0, 25.0)
     plt.title(r"Trajectory of the vehicle", fontsize=13, fontweight=0, color='black', style='italic', y=1.02 )
     plt.savefig('trajectory.png')
-    plt.show()
+    #plt.show()
     plt.close()
 
 if __name__ == '__main__':

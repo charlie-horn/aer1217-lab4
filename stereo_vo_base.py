@@ -8,6 +8,7 @@ https://carre.utoronto.ca/aer1217
 import numpy as np
 import cv2 as cv
 import sys
+import random
 
 STAGE_FIRST_FRAME = 0
 STAGE_SECOND_FRAME = 1
@@ -129,6 +130,71 @@ class VisualOdometry:
 
         return point
 
+    def ransac(self, features_coor):
+        #return feature_coor
+        num_features, _ = features_coor.shape
+        inlier_threshold = 1
+        min_inlier_fraction = 0.8
+        min_inliers = min_inlier_fraction*num_features
+        M = 3
+        iterations = 100
+        best_C = np.zeros((3,3))
+        best_r = np.zeros((3,1))
+        most_inliers = 0
+
+        f_r_prev, f_r_cur = features_coor[:,2:4], features_coor[:,6:8]
+        f_l_prev, f_l_cur = features_coor[:, 0:2], features_coor[:, 4:6]
+
+        p_prev = self.inv_cam(f_l_prev,f_r_prev)
+        p_cur = self.inv_cam(f_l_cur, f_r_cur)
+
+        for i in range(iterations):
+            chosen_features_ids = np.transpose(np.array(random.sample(range(num_features), M)))
+            chosen_features = features_coor[chosen_features_ids,:]
+
+            # Find "Model" for movement from a to b
+            
+            f_r_prev, f_r_cur = chosen_features[:,2:4], chosen_features[:,6:8]
+            f_l_prev, f_l_cur = chosen_features[:, 0:2], chosen_features[:, 4:6]
+
+            p_prev = self.inv_cam(f_l_prev,f_r_prev)
+            p_cur = self.inv_cam(f_l_cur, f_r_cur)
+
+            C_ba, r_ba_a = self.compute_T(p_prev, p_cur)  #change to inlier_previous and inlier_current only after integrating RANSAC
+            r_ab_b = -np.dot(C_ba,r_ba_a)
+
+            #check = np.transpose(p_cur) - np.add(np.matmul(C_ba,np.transpose(p_prev)), r_ab_b.reshape((3,1)))
+
+            # Find inliers/outliers
+
+            f_r_prev, f_r_cur = features_coor[:,2:4], features_coor[:,6:8]
+            f_l_prev, f_l_cur = features_coor[:, 0:2], features_coor[:, 4:6]
+
+            p_prev = self.inv_cam(f_l_prev,f_r_prev)
+            p_cur = self.inv_cam(f_l_cur, f_r_cur)
+
+            distances = np.sum(np.abs(np.transpose(p_cur) - np.add(np.matmul(C_ba,np.transpose(p_prev)), r_ab_b.reshape((3,1)))), axis=0)
+            inlier_ids = np.where(distances<inlier_threshold)
+            num_inliers = inlier_ids[0].shape[0]
+
+            # Save best model
+
+            if num_inliers > min_inliers:
+                most_inliers = num_inliers
+                best_inlier_ids = inlier_ids
+                best_C = C_ba
+                best_r = r_ab_b
+                break
+            elif num_inliers > most_inliers:
+                most_inliers = num_inliers
+                best_inlier_ids = inlier_ids
+                best_C = C_ba
+                best_r = r_ab_b
+            
+        #print("Ransac took ", i, "iterations, ", most_inliers, "inliers")
+        features_coor = features_coor[best_inlier_ids]
+        return features_coor
+
     def compute_T(self, points_a, points_b):
         # step 5
         num_p = len(points_a)
@@ -156,6 +222,7 @@ class VisualOdometry:
         #C = np.eye(3)
         #r = np.array([0,0,0])
         # feature in right and left img (without filtering)
+        features_coor = self.ransac(features_coor)
         f_r_prev, f_r_cur = features_coor[:,2:4], features_coor[:,6:8]
         f_l_prev, f_l_cur = features_coor[:, 0:2], features_coor[:, 4:6]
         # ------------- start your code here -------------- #
