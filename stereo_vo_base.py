@@ -8,7 +8,6 @@ https://carre.utoronto.ca/aer1217
 import numpy as np
 import cv2 as cv
 import sys
-import random
 
 STAGE_FIRST_FRAME = 0
 STAGE_SECOND_FRAME = 1
@@ -110,87 +109,73 @@ class VisualOdometry:
         features_coor = features_coor[
                     (np.absolute(features_coor[:,4] - features_coor[:,6]) > FAR_THRESH) & 
                     (np.absolute(features_coor[:,4] - features_coor[:,6]) < CLOSE_THRESH)]
+
         # features_coor:
-        #   prev_l_x, prev_l_y, prev_r_x, prev_r_y, cur_l_x, cur_l_y, cur_r_x, cur_r_y
+        # prev_l_x, prev_l_y, prev_r_x, prev_r_y, cur_l_x, cur_l_y, cur_r_x, cur_r_y
         return features_coor
-    
-    def pixelToPointCloud(self,left,right):
-        b = self.cam.b
-        ul = left[0]
-        vl = left[1]
-        ur = right[0]
-        vr = right[1]
+
+    def inv_cam(self, f_l,f_r):
+        #### convert feature points into 3D coordinate
+        b = self.cam.baseline
+        fu = self.cam.fx
+        fv = self.cam.fy
         cu = self.cam.cu
         cv = self.cam.cv
-        fu = self.cam.fu
-        fv = self.cam.fv
 
-        F = [[(ul+ur)/2-cu],
-            [((vl+vr)/2-cv)*fu/fv],
-            [fu]]
-        p = (b/(ul - ur))*F
-        return p
-    
-    def ransac(self, feature_coor):
-        return feature_coor
-        num_frames, _ = feature_coor.shape
-        inlier_threshold = 0.1
-        min_inlier_fraction = 0.9
-        M = 3
-        iterations = 100
-        best_C = np.zeros((3,3))
-        best_r = np.zeros((3,1))
-        most_inliers = 0
-        for i in range(iterations):
-            chosen_features = random.sample(range(num_frames), M)
-            for feature in chosen_features:
-                prev_left_x = feature_coor[feature,0]
-                prev_left_y = feature_coor[feature,1]
-                prev_right_x = feature_coor[feature,2]
-                prev_right_y = feature_coor[feature,3]
-                # Get 3D point in first frame
-                p_prev = self.pixelToPointCloud((prev_left_x,prev_left_y),(prev_right_x,prev_right_y))
+        ul, vl = f_l[:,0], f_l[:, 1]
+        ur, vr = f_r[:,0], f_r[:, 1]
+        n = ur .shape[0]
+        point = np.transpose(b/(ul-ur)*np.vstack([0.5*(ul+ur)-cu, fu/fv*(0.5*(vl+vr))-cv, np.full((1,n),fu)]))
 
-                curr_left_x = feature_coor[feature,0]
-                curr_left_y = feature_coor[feature,1]
-                curr_right_x = feature_coor[feature,2]
-                curr_right_y = feature_coor[feature,3]
-                # Get 3D point in first frame
-                p_curr = self.pixelToPointCloud((curr_left_x,curr_left_y),(curr_right_x,curr_right_y))
+        return point
 
-            # Find "Model" for movement from a to b
+    def compute_T(self, points_a, points_b):
+        # step 5
+        num_p = len(points_a)
+        p_a = np.average(points_a, axis=0)
+        p_b = np.average(points_b, axis=0)
+        w_ab = np.dot(np.transpose(points_b-p_b),(points_a - p_a)) / num_p
 
-            # Find inliers/outliers
+        # step 6
+        v, s, u_T = np.linalg.svd(w_ab)
+        u = np.transpose(u_T)
+        det_u = np.linalg.det(u)
+        det_v = np.linalg.det(v)
 
-            # Save best model
+        # step 7
+        temp = np.eye(3)
+        temp[2,2] = det_u * det_v
+        c_ba = np.dot(np.dot(v, temp),u_T)
+        r_ba_a = -np.dot(np.transpose(c_ba),p_b) + p_a
 
-            # Check if model is good enough
-
-
-
-        
+        return c_ba, r_ba_a
 
 
     def pose_estimation(self, features_coor):
-        features_coor = self.ransac(features_coor)
         # dummy C and r
-        C = np.eye(3)
-        r = np.array([0,0,0])
-        # feature in right img (without filtering)
+        #C = np.eye(3)
+        #r = np.array([0,0,0])
+        # feature in right and left img (without filtering)
         f_r_prev, f_r_cur = features_coor[:,2:4], features_coor[:,6:8]
+        f_l_prev, f_l_cur = features_coor[:, 0:2], features_coor[:, 4:6]
         # ------------- start your code here -------------- #
-        
-        
-        
-        
-        
-        
+        # step 1
+        p_prev = self.inv_cam(f_l_prev,f_r_prev)
+        p_cur = self.inv_cam(f_l_cur, f_r_cur)
+
+        # step 2 - 4
+
+
+        # step 5 - 7
+        C_ba, r_ba_a = self.compute_T(p_prev, p_cur)  #change to inlier_previous and inlier_current only after integrating RANSAC
+
+        # step 8
+        r_ab_b = -np.dot(C_ba,r_ba_a)
         
         # replace (1) the dummy C and r to the estimated C and r. 
         #         (2) the original features to the filtered features
-        return C, r, f_r_prev, f_r_cur
 
-
+        return C_ba, r_ab_b, f_r_prev, f_r_cur
     
     def processFirstFrame(self, img_left, img_right):
         kp_l, des_l, feature_l_img = self.feature_detection(img_left)
