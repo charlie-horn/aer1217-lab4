@@ -222,16 +222,15 @@ class VisualOdometry:
         #C = np.eye(3)
         #r = np.array([0,0,0])
         # feature in right and left img (without filtering)
+        
+        # ------------- start your code here -------------- #
+        # step 1 - 4
         features_coor = self.ransac(features_coor)
         f_r_prev, f_r_cur = features_coor[:,2:4], features_coor[:,6:8]
         f_l_prev, f_l_cur = features_coor[:, 0:2], features_coor[:, 4:6]
-        # ------------- start your code here -------------- #
-        # step 1
+        
         p_prev = self.inv_cam(f_l_prev,f_r_prev)
         p_cur = self.inv_cam(f_l_cur, f_r_cur)
-
-        # step 2 - 4
-
 
         # step 5 - 7
         C_ba, r_ba_a = self.compute_T(p_prev, p_cur)  #change to inlier_previous and inlier_current only after integrating RANSAC
